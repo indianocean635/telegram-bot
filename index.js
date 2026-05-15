@@ -20,36 +20,85 @@ bot.command('health', (ctx) => {
   ctx.reply('✅ Bot is healthy');
 });
 
-// Handle /start command with deep-link payload
+// Handle /start command with booking token
 bot.start(async (ctx) => {
-  const payload = ctx.startPayload;
+  const bookingToken = ctx.startPayload;
   const chatId = ctx.chat.id;
   const username = ctx.from?.username;
 
-  if (!payload) {
+  if (!bookingToken) {
     await ctx.reply('Бот подключен ✅\n\nДля получения уведомлений о записях, используйте ссылку из формы записи.');
     return;
   }
 
   try {
     const backendUrl = process.env.BACKEND_URL || 'https://bloknotservis.ru';
-    await axios.post(`${backendUrl}/api/telegram/connect`, {
-      token: payload,
+    
+    // Link telegram chatId to booking
+    const response = await axios.post(`${backendUrl}/api/telegram/link-booking`, {
+      bookingToken,
       chatId,
       username
     });
 
-    await ctx.reply('Telegram успешно подключен ✅\n\nТеперь вы будете получать уведомления о записях.');
+    const booking = response.data.booking;
+    
+    console.log(`[TELEGRAM LINKED] Booking ID: ${booking.id}, Chat ID: ${chatId}`);
+
+    // Send booking confirmation message
+    const dateStr = new Date(booking.startsAt).toLocaleDateString('ru-RU');
+    const timeStr = new Date(booking.startsAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+    const confirmationMessage = `
+✅ Бронирование подтверждено!
+
+📋 Услуга: ${booking.service?.name || 'Не указано'}
+👨‍💼 Специалист: ${booking.master?.name || 'Не указано'}
+📅 Дата: ${dateStr}
+🕐 Время: ${timeStr}
+🏢 ${booking.business?.name || ''}
+
+Ждем вас!
+    `.trim();
+
+    await ctx.reply(confirmationMessage);
+    console.log(`[CONFIRMATION SENT] Booking ID: ${booking.id}, Chat ID: ${chatId}`);
+
   } catch (error) {
-    console.error('Error connecting Telegram:', error.response?.data || error.message);
-    await ctx.reply('Ошибка подключения Telegram. Попробуйте позже.');
+    console.error('Error linking booking:', error.response?.data || error.message);
+    await ctx.reply('Ошибка подключения. Неверный токен бронирования.');
   }
 });
 
 // Handle other messages
 bot.on('text', (ctx) => {
-  ctx.reply('Для подключения уведомлений, используйте ссылку из формы записи.');
+  ctx.reply('Для получения уведомлений о записях, используйте ссылку из формы записи.');
 });
+
+// Reminder system (runs every hour)
+const sendReminders = async () => {
+  try {
+    const backendUrl = process.env.BACKEND_URL || 'https://bloknotservis.ru';
+    const response = await axios.post(`${backendUrl}/api/telegram/send-reminders`);
+    
+    if (response.data.reminders) {
+      for (const reminder of response.data.reminders) {
+        try {
+          await bot.telegram.sendMessage(reminder.chatId, reminder.message);
+          console.log(`[REMINDER SENT] Booking ID: ${reminder.bookingId}, Type: ${reminder.type}, Chat ID: ${reminder.chatId}`);
+        } catch (error) {
+          console.error(`[REMINDER ERROR] Failed to send reminder to ${reminder.chatId}:`, error.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error sending reminders:', error.response?.data || error.message);
+  }
+};
+
+// Start reminder cron (every hour)
+setInterval(sendReminders, 60 * 60 * 1000);
+console.log('⏰ Reminder system started (every hour)');
 
 // Graceful shutdown
 const gracefulShutdown = async () => {
