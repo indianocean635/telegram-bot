@@ -44,6 +44,7 @@ bot.start(async (ctx) => {
     const booking = response.data.booking;
     
     console.log(`[TELEGRAM LINKED] Booking ID: ${booking.id}, Chat ID: ${chatId}`);
+    console.log(`[TELEGRAM] Booking data:`, JSON.stringify(booking, null, 2));
 
     // Send booking confirmation message with inline buttons
     const dateStr = new Date(booking.startsAt).toLocaleDateString('ru-RU');
@@ -61,17 +62,15 @@ bot.start(async (ctx) => {
 Ждем вас!
     `.trim();
 
-    // Create inline keyboard
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: '📅 Перенести запись', callback_data: `reschedule_${booking.id}_${booking.bookingToken}` },
-          { text: '❌ Отменить запись', callback_data: `cancel_${booking.id}_${booking.bookingToken}` }
-        ]
+    // Create inline keyboard using Markup
+    const keyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('📅 Перенести запись', `reschedule_${booking.id}`),
+        Markup.button.callback('❌ Отменить запись', `cancel_${booking.id}`)
       ]
-    };
+    ]);
 
-    await ctx.reply(confirmationMessage, { reply_markup: keyboard });
+    await ctx.reply(confirmationMessage, keyboard);
     console.log(`[CONFIRMATION SENT] Booking ID: ${booking.id}, Chat ID: ${chatId}`);
 
   } catch (error) {
@@ -84,7 +83,9 @@ bot.start(async (ctx) => {
 bot.on('callback_query', async (ctx) => {
   const callbackData = ctx.callbackQuery.data;
   const chatId = ctx.chat.id;
-  const [action, bookingId, bookingToken] = callbackData.split('_');
+  const [action, bookingId] = callbackData.split('_');
+
+  console.log(`[CALLBACK] Action: ${action}, Booking ID: ${bookingId}, Chat ID: ${chatId}`);
 
   try {
     const backendUrl = process.env.BACKEND_URL || 'https://bloknotservis.ru';
@@ -93,7 +94,6 @@ bot.on('callback_query', async (ctx) => {
       // Cancel booking
       const response = await axios.post(`${backendUrl}/api/telegram/cancel-booking`, {
         bookingId: parseInt(bookingId),
-        bookingToken,
         chatId
       });
 
@@ -108,7 +108,6 @@ bot.on('callback_query', async (ctx) => {
       // Generate reschedule link
       const response = await axios.post(`${backendUrl}/api/telegram/reschedule-link`, {
         bookingId: parseInt(bookingId),
-        bookingToken,
         chatId
       });
 
