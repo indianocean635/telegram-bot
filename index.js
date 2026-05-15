@@ -2,8 +2,18 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 
+// Check required env variables
+if (!process.env.BOT_TOKEN) {
+  console.error('❌ BOT_TOKEN is required');
+  process.exit(1);
+}
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const port = process.env.PORT || 3000;
+
+console.log('🚀 Starting Telegram Bot...');
+console.log(`📡 Mode: ${process.env.WEBHOOK_URL ? 'Webhook' : 'Polling'}`);
+console.log(`🔗 Backend URL: ${process.env.BACKEND_URL || 'https://bloknotservis.ru'}`);
 
 // Health check endpoint
 bot.command('health', (ctx) => {
@@ -22,7 +32,8 @@ bot.start(async (ctx) => {
   }
 
   try {
-    await axios.post(`${process.env.BACKEND_URL}/api/telegram/connect`, {
+    const backendUrl = process.env.BACKEND_URL || 'https://bloknotservis.ru';
+    await axios.post(`${backendUrl}/api/telegram/connect`, {
       token: payload,
       chatId,
       username
@@ -50,26 +61,32 @@ const gracefulShutdown = async () => {
 process.on('SIGTERM', gracefulShutdown);
 process.on('SIGINT', gracefulShutdown);
 
-// Start bot with webhook
+// Start bot
 const startBot = async () => {
   try {
-    // Set webhook
     const webhookUrl = process.env.WEBHOOK_URL;
+
     if (webhookUrl) {
+      // Webhook mode
+      console.log(`🔗 Setting webhook to: ${webhookUrl}`);
       await bot.telegram.setWebhook(webhookUrl);
-      console.log(`✅ Webhook set to: ${webhookUrl}`);
+      console.log('✅ Webhook configured');
+
+      await bot.launch({
+        webhook: {
+          domain: new URL(webhookUrl).hostname,
+          hookPath: '/webhook',
+          port
+        }
+      });
+
+      console.log(`🤖 Bot started in webhook mode on port ${port}`);
+    } else {
+      // Polling mode
+      console.log('🔄 Starting in polling mode');
+      await bot.launch();
+      console.log('🤖 Bot started in polling mode');
     }
-
-    // Launch bot
-    await bot.launch({
-      webhook: {
-        domain: webhookUrl ? new URL(webhookUrl).hostname : undefined,
-        hookPath: '/webhook',
-        port
-      }
-    });
-
-    console.log(`🤖 Bot started on port ${port}`);
   } catch (error) {
     console.error('❌ Error starting bot:', error);
     process.exit(1);
