@@ -62,18 +62,21 @@ bot.start(async (ctx) => {
 Ждем вас!
     `.trim();
 
-    // Create inline keyboard using Markup
-    const keyboard = Markup.inlineKeyboard([
-      [
-        Markup.button.callback('📅 Перенести запись', `reschedule_${booking.id}`),
-        Markup.button.callback('❌ Отменить запись', `cancel_${booking.id}`)
+    // Create inline keyboard
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: '❌ Отменить запись', callback_data: `cancel_${booking.id}` }
+        ],
+        [
+          { text: '📅 Перенести запись', url: 'https://bloknotservis.ru/booking' }
+        ]
       ]
-    ]);
+    };
 
-    console.log('[TELEGRAM] Keyboard created:', JSON.stringify(keyboard, null, 2));
     console.log('[TELEGRAM] Sending message with keyboard...');
 
-    await ctx.reply(confirmationMessage, keyboard);
+    await ctx.reply(confirmationMessage, { reply_markup: keyboard });
     console.log(`[CONFIRMATION SENT] Booking ID: ${booking.id}, Chat ID: ${chatId}`);
 
   } catch (error) {
@@ -84,17 +87,23 @@ bot.start(async (ctx) => {
 
 // Handle callback queries (inline button presses)
 bot.on('callback_query', async (ctx) => {
-  const callbackData = ctx.callbackQuery.data;
+  const callbackQuery = ctx.callbackQuery;
+  
+  if (!callbackQuery?.data) {
+    await ctx.answerCbQuery();
+    return;
+  }
+
+  const data = callbackQuery.data;
   const chatId = ctx.chat.id;
-  const [action, bookingId] = callbackData.split('_');
 
-  console.log(`[CALLBACK] Action: ${action}, Booking ID: ${bookingId}, Chat ID: ${chatId}`);
+  console.log(`[CALLBACK] Data: ${data}, Chat ID: ${chatId}`);
 
-  try {
-    const backendUrl = process.env.BACKEND_URL || 'https://bloknotservis.ru';
-
-    if (action === 'cancel') {
-      // Cancel booking
+  if (data.startsWith('cancel_')) {
+    const bookingId = data.replace('cancel_', '');
+    
+    try {
+      const backendUrl = process.env.BACKEND_URL || 'https://bloknotservis.ru';
       const response = await axios.post(`${backendUrl}/api/telegram/cancel-booking`, {
         bookingId: parseInt(bookingId),
         chatId
@@ -107,24 +116,12 @@ bot.on('callback_query', async (ctx) => {
       } else {
         await ctx.answerCbQuery('Ошибка отмены записи');
       }
-    } else if (action === 'reschedule') {
-      // Generate reschedule link
-      const response = await axios.post(`${backendUrl}/api/telegram/reschedule-link`, {
-        bookingId: parseInt(bookingId),
-        chatId
-      });
-
-      const rescheduleUrl = response.data.rescheduleUrl;
-      
-      await ctx.editMessageText('📅 Для переноса записи откройте ссылку:\n\n' + rescheduleUrl);
-      await ctx.answerCbQuery();
-      console.log(`[RESCHEDULE OPENED] Booking ID: ${bookingId}, Chat ID: ${chatId}`);
-    } else {
-      await ctx.answerCbQuery('Неизвестное действие');
+    } catch (error) {
+      console.error('Error handling cancel callback:', error.response?.data || error.message);
+      await ctx.answerCbQuery('Ошибка выполнения действия');
     }
-  } catch (error) {
-    console.error('Error handling callback query:', error.response?.data || error.message);
-    await ctx.answerCbQuery('Ошибка выполнения действия');
+  } else {
+    await ctx.answerCbQuery();
   }
 });
 
