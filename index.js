@@ -47,8 +47,13 @@ bot.start(async (ctx) => {
     console.log(`[TELEGRAM] Booking data:`, JSON.stringify(booking, null, 2));
 
     // Send booking confirmation message with inline buttons
-    const dateStr = new Date(booking.startsAt).toLocaleDateString('ru-RU');
-    const timeStr = new Date(booking.startsAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const bookingDate = new Date(booking.startsAt);
+    const dateStr = bookingDate.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' });
+    const timeStr = bookingDate.toLocaleTimeString('ru-RU', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      timeZone: 'Europe/Moscow'
+    });
 
     const confirmationMessage = `
 ✅ Запись подтверждена
