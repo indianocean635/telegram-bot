@@ -70,6 +70,9 @@ bot.start(async (ctx) => {
       ]
     ]);
 
+    console.log('[TELEGRAM] Keyboard created:', JSON.stringify(keyboard, null, 2));
+    console.log('[TELEGRAM] Sending message with keyboard...');
+
     await ctx.reply(confirmationMessage, keyboard);
     console.log(`[CONFIRMATION SENT] Booking ID: ${booking.id}, Chat ID: ${chatId}`);
 
