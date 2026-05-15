@@ -48,11 +48,13 @@ bot.start(async (ctx) => {
 
     // Send booking confirmation message with inline buttons
     const bookingDate = new Date(booking.startsAt);
-    const dateStr = bookingDate.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' });
-    const timeStr = bookingDate.toLocaleTimeString('ru-RU', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      timeZone: 'Europe/Moscow'
+    const dateTimeStr = bookingDate.toLocaleString('ru-RU', {
+      timeZone: 'Europe/Moscow',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
 
     const confirmationMessage = `
@@ -60,29 +62,31 @@ bot.start(async (ctx) => {
 
 📋 Услуга: ${booking.service?.name || 'Не указано'}
 👨‍💼 Специалист: ${booking.master?.name || 'Не указано'}
-📅 Дата: ${dateStr}
-🕐 Время: ${timeStr}
+📅 Дата и время: ${dateTimeStr}
 🏢 ${booking.business?.name || ''}
 
 Ждем вас!
     `.trim();
 
-    // Create inline keyboard
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: '❌ Отменить запись', callback_data: `cancel_${booking.id}` }
-        ],
-        [
-          { text: '📅 Перенести запись', url: 'https://bloknotservis.ru/booking' }
+    // Send message with inline keyboard
+    await ctx.reply(confirmationMessage, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: '❌ Отменить запись',
+              callback_data: `cancel_${booking.id}`
+            }
+          ],
+          [
+            {
+              text: '📅 Перенести запись',
+              url: 'https://bloknotservis.ru/booking'
+            }
+          ]
         ]
-      ]
-    };
-
-    console.log('[TELEGRAM] Sending message with keyboard...');
-
-    await ctx.reply(confirmationMessage, { reply_markup: keyboard });
-    console.log(`[CONFIRMATION SENT] Booking ID: ${booking.id}, Chat ID: ${chatId}`);
+      }
+    });
 
   } catch (error) {
     console.error('Error linking booking:', error.response?.data || error.message);
